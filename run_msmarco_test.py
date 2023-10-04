@@ -51,7 +51,7 @@ class MSMARCOData(Dataset):
 
 if __name__ == "__main__":
 	torch.set_default_device('cuda')
-	path = Path("D:") / "ml" / "data" / "msmarco" 
+	path = "path to ms marco files" 
 	
 	qrels_dev = pl.read_csv(path / "collectionandqueries" / "qrels.dev.small.tsv", separator='\t', has_header=False,new_columns=["qid", "i", "pid", "label"])
 	top1000 = pl.read_csv(path / "top1000.dev" /"top1000.dev", separator='\t', has_header=False, new_columns=["qid", "pid", "query", "passage"])
