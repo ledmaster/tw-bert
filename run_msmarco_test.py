@@ -51,7 +51,7 @@ class MSMARCOData(Dataset):
 
 if __name__ == "__main__":
 	torch.set_default_device('cuda')
-	path = "path to ms marco files" 
+	path = "path to msmarco"
 	
 	qrels_dev = pl.read_csv(path / "collectionandqueries" / "qrels.dev.small.tsv", separator='\t', has_header=False,new_columns=["qid", "i", "pid", "label"])
 	top1000 = pl.read_csv(path / "top1000.dev" /"top1000.dev", separator='\t', has_header=False, new_columns=["qid", "pid", "query", "passage"])
@@ -109,6 +109,7 @@ if __name__ == "__main__":
 				optimizer.zero_grad()
 				
 				with torch.no_grad():
+					model.eval()
 					loss_ = 0
 					mrr = 0
 					for k in range(len(val_dataset)):
@@ -129,3 +130,4 @@ if __name__ == "__main__":
 							mrr += 0.
 						loss_ += criterion(output, target).item()
 					print("Val Loss: ", loss_/ len(val_dataset), "Val MRR: ", mrr/ len(val_dataset))
+					model.train()
