@@ -59,6 +59,18 @@ The scripts require the following libraries:
 - Joblib
 - Pathlib
 
+## Suggested Improvements
+
+My goal was to reproduce, as closely as possible, the architecture and pipeline from the original paper.
+
+It's supposed to be a first step towards a more optimized (and deployable) implementation.
+
+I cared much more about the `tw_bert_v2.py` file and barely optimized the data processing and pipeline in `run_msmarco_test.py`.
+
+One clear improvement you can do is vectorize all the inputs, batch and use `torch.utils.data.DataLoader` to load the data.
+
+The `score_vec` function can also use more vectorization.
+
 ## Differences from Original Paper
 
 - **No Bi-gram**: This implementation does not consider bi-grams (two-word phrases) when assigning term weights. The original paper's model consider both uni-grams (single words) and bi-grams.
