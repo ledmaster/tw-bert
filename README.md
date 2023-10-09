@@ -2,6 +2,8 @@
 
 This repository contains an implementation of the TW-BERT model proposed in the paper [End-to-End Query Term Weighting](https://research.google/pubs/pub52462/) by Google Research.
 
+You can find a [detailed explanation of the code here](https://forecastegy.com/posts/tw-bert-end-to-end-query-term-weighting-pytorch/).
+
 TW-BERT works by learning to assign weights to parts of a search query, specifically n-grams.
 
 For example, if we had the queries:
