@@ -90,3 +90,5 @@ The `score_vec` function can also use more vectorization.
 - [End-to-End Query Term Weighting](https://research.google/pubs/pub52462/) by Google Research
 - [ListMLE](https://github.com/allegro/allRank/tree/master/allrank/models/losses)
 - [Gradient Accumulation](https://kozodoi.me/blog/20210219/gradient-accumulation)
+
+PS: if you find it useful, please 🌟 the repo, thanks!
