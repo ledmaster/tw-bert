@@ -116,8 +116,10 @@ if __name__ == "__main__":
 	criterion = tw_bert_v2.TWBERTLossFT()
  
 	accum_iter = 500
+	global_step = 0
 	for i in range(10):
 		for j in range(len(train_dataset)):
+			global_step += 1
 			query, query_tf_vec, corpus, target = train_dataset[j]
 			query_tf_vec = torch.tensor(query_tf_vec, dtype=torch.float32, device="cuda")
 			avg_doc_len = 500
@@ -132,8 +134,8 @@ if __name__ == "__main__":
 			
 			loss.backward()
 			
-			if ((j + 1) % accum_iter == 0) or (j + 1 == len(data)):
-				print("Step: ", j + 1, "Train Loss: ", loss.item())
+			if (global_step % accum_iter == 0) or (j + 1 == len(train_dataset)):
+				print("Step: ", global_step, "Train Loss: ", loss.item() * accum_iter)
 				optimizer.step()
 				optimizer.zero_grad()
 				
