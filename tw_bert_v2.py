@@ -86,16 +86,27 @@ def score_vec(query, query_tf_vec, corpus, term_weights, avg_doc_len, k1=1.2, k3
         document_frequency = sum([1 for doc_tf in corpus if term in doc_tf])
         query_idf[term] = math.log((num_docs - document_frequency + 0.5)/(document_frequency+0.5) + 1) # +1?
     
-    doc_scores = list()
-    for doc_tf in corpus:
-        doc_len = sum(doc_tf.values())
-        # Ensure tensors are on the same device as term_weights
-        doc_tf_vec = torch.tensor([doc_tf.get(term, 0) for term in query], device=term_weights.device, dtype=torch.float32)
-        numerator = doc_tf_vec * (k3 + 1) * weighted_query_terms
-        normalization_factor = k1 * ((1-b) + b * doc_len/avg_doc_len) + doc_tf_vec
-        denominator = (k3 + weighted_query_terms) * normalization_factor
-        idf = torch.tensor([query_idf[term] for term in query], device=term_weights.device, dtype=torch.float32)
-        doc_scores.append(torch.sum(idf * numerator/denominator))
+    # Vectorized implementation: create document-term matrix
+    num_terms = len(query)
     
+    # Create document-term matrix and document lengths in one pass
+    doc_term_matrix = torch.zeros(num_docs, num_terms, device=term_weights.device, dtype=torch.float32)
+    doc_lengths = torch.zeros(num_docs, device=term_weights.device, dtype=torch.float32)
     
-    return torch.stack(doc_scores)
+    for i, doc_tf in enumerate(corpus):
+        doc_lengths[i] = sum(doc_tf.values())
+        for j, term in enumerate(query):
+            doc_term_matrix[i, j] = doc_tf.get(term, 0)
+    
+    # Vectorized BM25 calculations
+    idf = torch.tensor([query_idf[term] for term in query], device=term_weights.device, dtype=torch.float32)
+    
+    # Broadcast operations across all documents
+    numerator = doc_term_matrix * (k3 + 1) * weighted_query_terms.unsqueeze(0)  # [num_docs, num_terms]
+    normalization_factor = k1 * ((1-b) + b * doc_lengths.unsqueeze(1) / avg_doc_len) + doc_term_matrix  # [num_docs, num_terms]
+    denominator = (k3 + weighted_query_terms.unsqueeze(0)) * normalization_factor  # [num_docs, num_terms]
+    
+    # Final scoring with IDF weighting
+    doc_scores = torch.sum(idf.unsqueeze(0) * numerator / denominator, dim=1)  # [num_docs]
+    
+    return doc_scores
