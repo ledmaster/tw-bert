@@ -57,9 +57,12 @@ if __name__ == "__main__":
 	ds = load_dataset("microsoft/ms_marco", "v1.1")
 	
 	# Process the dataset - each row contains a query with multiple passages
+	# Select only 1000 samples for training and validation
 	processed_rows = []
 	
-	for row in ds['train']:
+	for i, row in enumerate(ds['train']):
+		if i >= 1000:
+			break
 		qid = row['query_id']
 		query = row['query']
 		passages = row['passages']
