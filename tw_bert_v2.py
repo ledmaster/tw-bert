@@ -13,32 +13,30 @@ class TWBERT(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.bert_model = AutoModel.from_pretrained("bert-base-uncased").base_model
-        self.linear = torch.nn.Linear(768, 1)
+        self.scoring_layer = torch.nn.Linear(768, 1)
         self.relu = torch.nn.ReLU()
         
     def forward(self, input_ids, attention_mask, term_mask):
         bert_output = self.bert_model(input_ids, attention_mask=attention_mask).last_hidden_state # 1 x |W| x d
-        mask_ = term_mask.unsqueeze(-1) # |T| x |W| x 1
+        expanded_term_mask = term_mask.unsqueeze(-1) # |T| x |W| x 1
 
-        q_h_masked = bert_output * mask_ # |T| x |W| x d - Masking
-        #print(q_h_masked)
-        p = q_h_masked.mean(dim=1)  # |T| x d - Pooling
-        #print(p)
-        return self.relu(self.linear(p)) # |T|
+        masked_embeddings = bert_output * expanded_term_mask # |T| x |W| x d - Masking
+        pooled_embeddings = masked_embeddings.mean(dim=1)  # |T| x d - Pooling
+        return self.relu(self.scoring_layer(pooled_embeddings)) # |T|
 
 # listMLE adapted from https://github.com/allegro/allRank/tree/master/allrank/models/losses
 class TWBERTLossFT(torch.nn.Module):
-    def __init__(self, d1=0.2, d2=1):
+    def __init__(self, threshold_low=0.2, threshold_high=1):
         super().__init__()
-        self.d1 = d1
-        self.d2 = d2
+        self.threshold_low = threshold_low
+        self.threshold_high = threshold_high
     
     def forward(self, scores, labels):
-        a_scores = torch.abs(scores - labels)
+        absolute_errors = torch.abs(scores - labels)
         amse_loss = torch.zeros(scores.shape[0])
-        amse_loss = torch.where((a_scores >= self.d1) & (a_scores < self.d2), 
+        amse_loss = torch.where((absolute_errors >= self.threshold_low) & (absolute_errors < self.threshold_high), 
                         0.5 * (scores - labels)**2, amse_loss)
-        amse_loss = torch.where(a_scores >= self.d2, self.d2 * (a_scores - 0.5 * self.d2), amse_loss)
+        amse_loss = torch.where(absolute_errors >= self.threshold_high, self.threshold_high * (absolute_errors - 0.5 * self.threshold_high), amse_loss)
         
         random_indices = torch.randperm(scores.shape[-1])
         y_pred_shuffled = scores[random_indices]
@@ -59,15 +57,15 @@ class TWBERTLossFT(torch.nn.Module):
         return amse_loss.mean() + observation_loss.mean()
     
 def token_and_mask_query(query, tokenizer):
-    query_t = tokenizer(query, return_tensors="pt", padding=True)
+    tokenized_query = tokenizer(query, return_tensors="pt", padding=True)
     ngrams = re.findall(r"[a-z0-9']+", query)
-    term_t = [tokenizer(ng, add_special_tokens=False).input_ids for ng in ngrams]
+    tokenized_terms = [tokenizer(ng, add_special_tokens=False).input_ids for ng in ngrams]
 
-    mask = torch.zeros(len(ngrams)+2, query_t["input_ids"].shape[1])
+    mask = torch.zeros(len(ngrams)+2, tokenized_query["input_ids"].shape[1])
     for i in range(1,len(ngrams)+1):
-        for j in term_t[i-1]:
-            mask[i, query_t["input_ids"][0] == j] = 1
-    return query_t, mask
+        for j in tokenized_terms[i-1]:
+            mask[i, tokenized_query["input_ids"][0] == j] = 1
+    return tokenized_query, mask
 
 def score_vec(query, query_tf_vec, corpus, term_weights, avg_doc_len, k1=1.2, k3=8., b=0.75):
     # corpus = list of documents in word frequency format [{term: freq, ...}, {...}]
@@ -79,25 +77,25 @@ def score_vec(query, query_tf_vec, corpus, term_weights, avg_doc_len, k1=1.2, k3
     else:
         query_tf_vec = query_tf_vec.to(term_weights.device)
     
-    f_ti_t_w = term_weights * query_tf_vec
+    weighted_query_terms = term_weights * query_tf_vec
     num_docs = len(corpus)
     
     query_idf = {}
     for term in query:
         #print(corpus)
-        df_t = sum([1 for doc_tf in corpus if term in doc_tf])
-        query_idf[term] = math.log((num_docs - df_t + 0.5)/(df_t+0.5) + 1) # +1?
+        document_frequency = sum([1 for doc_tf in corpus if term in doc_tf])
+        query_idf[term] = math.log((num_docs - document_frequency + 0.5)/(document_frequency+0.5) + 1) # +1?
     
     doc_scores = list()
     for doc_tf in corpus:
         doc_len = sum(doc_tf.values())
         # Ensure tensors are on the same device as term_weights
         doc_tf_vec = torch.tensor([doc_tf.get(term, 0) for term in query], device=term_weights.device, dtype=torch.float32)
-        num = doc_tf_vec * (k3 + 1) * f_ti_t_w
-        k = k1 * ((1-b) + b * doc_len/avg_doc_len) + doc_tf_vec
-        den = (k3 + f_ti_t_w) * k
+        numerator = doc_tf_vec * (k3 + 1) * weighted_query_terms
+        normalization_factor = k1 * ((1-b) + b * doc_len/avg_doc_len) + doc_tf_vec
+        denominator = (k3 + weighted_query_terms) * normalization_factor
         idf = torch.tensor([query_idf[term] for term in query], device=term_weights.device, dtype=torch.float32)
-        doc_scores.append(torch.sum(idf * num/den))
+        doc_scores.append(torch.sum(idf * numerator/denominator))
     
     
     return torch.stack(doc_scores)
