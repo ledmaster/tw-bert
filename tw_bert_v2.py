@@ -72,6 +72,13 @@ def token_and_mask_query(query, tokenizer):
 def score_vec(query, query_tf_vec, corpus, term_weights, avg_doc_len, k1=1.2, k3=8., b=0.75):
     # corpus = list of documents in word frequency format [{term: freq, ...}, {...}]
     query = re.findall(r"[a-z0-9']+", query)
+    
+    # Ensure query_tf_vec is on the same device as term_weights
+    if isinstance(query_tf_vec, list):
+        query_tf_vec = torch.tensor(query_tf_vec, device=term_weights.device, dtype=torch.float32)
+    else:
+        query_tf_vec = query_tf_vec.to(term_weights.device)
+    
     f_ti_t_w = term_weights * query_tf_vec
     num_docs = len(corpus)
     
@@ -84,11 +91,12 @@ def score_vec(query, query_tf_vec, corpus, term_weights, avg_doc_len, k1=1.2, k3
     doc_scores = list()
     for doc_tf in corpus:
         doc_len = sum(doc_tf.values())
-        doc_tf_vec = torch.Tensor([doc_tf[term] for term in query]) # mask?
+        # Ensure tensors are on the same device as term_weights
+        doc_tf_vec = torch.tensor([doc_tf.get(term, 0) for term in query], device=term_weights.device, dtype=torch.float32)
         num = doc_tf_vec * (k3 + 1) * f_ti_t_w
         k = k1 * ((1-b) + b * doc_len/avg_doc_len) + doc_tf_vec
         den = (k3 + f_ti_t_w) * k
-        idf = torch.Tensor([query_idf[term] for term in query])
+        idf = torch.tensor([query_idf[term] for term in query], device=term_weights.device, dtype=torch.float32)
         doc_scores.append(torch.sum(idf * num/den))
     
     
