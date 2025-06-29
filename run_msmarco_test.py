@@ -13,6 +13,7 @@ from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
 
 from joblib import Parallel, delayed
+from datasets import load_dataset
 
 stemmer = PorterStemmer()
 sw = list(stopwords.words('english'))
@@ -51,12 +52,37 @@ class MSMARCOData(Dataset):
 
 if __name__ == "__main__":
 	torch.set_default_device('cuda')
-	path = "path to msmarco"
 	
-	qrels_dev = pl.read_csv(path / "collectionandqueries" / "qrels.dev.small.tsv", separator='\t', has_header=False,new_columns=["qid", "i", "pid", "label"])
-	top1000 = pl.read_csv(path / "top1000.dev" /"top1000.dev", separator='\t', has_header=False, new_columns=["qid", "pid", "query", "passage"])
-
-	data = top1000.join(qrels_dev[['qid', 'pid','label']], on=['qid', 'pid'], how='left').fill_null(0).sort('label', descending=True).group_by('qid').head(100)
+	# Load MSMARCO dataset using datasets library
+	ds = load_dataset("microsoft/ms_marco", "v1.1")
+	
+	# Process the dataset - each row contains a query with multiple passages
+	processed_rows = []
+	
+	for row in ds['train']:
+		qid = row['query_id']
+		query = row['query']
+		passages = row['passages']
+		
+		# Extract passage texts and labels
+		passage_texts = passages['passage_text']
+		is_selected = passages['is_selected']
+		
+		# Create individual query-passage pairs
+		for i, (passage, label) in enumerate(zip(passage_texts, is_selected)):
+			processed_rows.append({
+				'qid': qid,
+				'pid': f"{qid}_{i}",  # Create unique passage ID
+				'query': query,
+				'passage': passage,
+				'label': label
+			})
+	
+	# Convert to polars DataFrame
+	data = pl.DataFrame(processed_rows)
+	
+	# Group by query and take top 100 passages per query
+	data = data.sort('label', descending=True).group_by('qid').head(100)
 	queries = data.select(pl.col("qid")).unique().to_numpy().squeeze()
 	train_queries = queries[:-500]
 	val_queries = queries[-500:]
