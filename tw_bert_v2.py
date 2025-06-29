@@ -1,6 +1,6 @@
 from transformers import AutoTokenizer, AutoModelForTokenClassification, AutoModel
 import torch
-torch.set_default_tensor_type('torch.cuda.FloatTensor')
+torch.set_default_dtype(torch.float32)
 torch.set_default_device('cuda')
 import math
 import re

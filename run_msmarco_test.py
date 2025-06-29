@@ -92,8 +92,8 @@ if __name__ == "__main__":
 
 	query_tf_vecs = data.select(pl.col("qid"), pl.col('query')).unique().with_columns([
 		pl.col("query").str.extract_all(r"[A-Za-z0-9']+").alias("query_terms")]).with_columns([
-			pl.col("query_terms").map_elements(clean_query).alias("clean_query_terms")]).with_columns([
-				pl.col("clean_query_terms").map_elements(query_tf_vec).alias("query_tf_vec"),
+			pl.col("query_terms").map_elements(clean_query, return_dtype=pl.List(pl.String)).alias("clean_query_terms")]).with_columns([
+				pl.col("clean_query_terms").map_elements(query_tf_vec, return_dtype=pl.List(pl.Int32)).alias("query_tf_vec"),
 				pl.col("clean_query_terms").list.join(" ").alias("clean_query")])
 			
 	
