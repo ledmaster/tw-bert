@@ -71,8 +71,6 @@ I cared much more about the `tw_bert_v2.py` file and barely optimized the data p
 
 One clear improvement you can do is vectorize all the inputs, batch and use `torch.utils.data.DataLoader` to load the data.
 
-The `score_vec` function can also use more vectorization.
-
 ## Differences from Original Paper
 
 - **No Bi-gram**: This implementation does not consider bi-grams (two-word phrases) when assigning term weights. The original paper's model consider both uni-grams (single words) and bi-grams.
